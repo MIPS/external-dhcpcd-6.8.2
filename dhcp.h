@@ -142,6 +142,10 @@ enum FQDN {
 /* Some crappy DHCP servers require the BOOTP minimum length */
 #define BOOTP_MESSAGE_LENTH_MIN 300
 
+/* Flags for the OPTIONSOVERLOADED field. */
+#define OPTION_OVERLOADED_BOOT_FILE 1
+#define OPTION_OVERLOADED_SERVER_NAME 2
+
 /* Don't import common.h as that defines __unused which causes problems
  * on some Linux systems which define it as part of a structure */
 #if __GNUC__ > 2 || defined(__INTEL_COMPILER)
@@ -172,6 +176,14 @@ struct dhcp_message {
 	uint32_t cookie;
 	uint8_t options[DHCP_OPTION_LEN]; /* message options - cookie */
 } __packed;
+
+struct dhcp_option_iterator {
+	const struct dhcp_message *message;
+	const uint8_t *ptr;
+	const uint8_t *end;
+	uint8_t extra_option_locations;
+	uint8_t extra_option_locations_set;
+};
 
 struct dhcp_lease {
 	struct in_addr addr;

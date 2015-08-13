@@ -120,6 +120,9 @@
 
 extern const struct option cf_options[];
 
+/* The number of bytes it takes to hold a flag for each of the 256 options. */
+#define OPTION_MASK_SIZE (256 / NBBY)
+
 struct if_sla {
 	char ifname[IF_NAMESIZE];
 	uint32_t sla;
@@ -149,10 +152,10 @@ struct if_options {
 	time_t mtime;
 	uint8_t iaid[4];
 	int metric;
-	uint8_t requestmask[256 / NBBY];
-	uint8_t requiremask[256 / NBBY];
-	uint8_t nomask[256 / NBBY];
-	uint8_t rejectmask[256 / NBBY];
+	uint8_t requestmask[OPTION_MASK_SIZE];
+	uint8_t requiremask[OPTION_MASK_SIZE];
+	uint8_t nomask[OPTION_MASK_SIZE];
+	uint8_t rejectmask[OPTION_MASK_SIZE];
 	uint8_t requestmask6[(UINT16_MAX + 1) / NBBY];
 	uint8_t requiremask6[(UINT16_MAX + 1) / NBBY];
 	uint8_t nomask6[(UINT16_MAX + 1) / NBBY];
