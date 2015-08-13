@@ -63,6 +63,7 @@ const char dhcpcd_copyright[] = "Copyright (c) 2006-2015 Roy Marples";
 #include "ipv4.h"
 #include "ipv6.h"
 #include "ipv6nd.h"
+#include "rpc-interface.h"
 #include "script.h"
 
 #ifdef USE_SIGNALS
@@ -1776,6 +1777,12 @@ main(int argc, char **argv)
 	if ((ctx.options & (DHCPCD_MASTER | DHCPCD_DEV)) ==
 	    (DHCPCD_MASTER | DHCPCD_DEV))
 		dev_start(&ctx);
+
+	if (rpc_init(&ctx) == -1) {
+		/* NB: rpc_init generates a syslog msg */
+		exit(EXIT_FAILURE);
+	}
+	rpc_signal_status("Init");
 
 	ctx.ifaces = if_discover(&ctx, ctx.ifc, ctx.ifv);
 	if (ctx.ifaces == NULL) {

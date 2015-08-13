@@ -47,6 +47,9 @@
 #include "if-options.h"
 #include "ipv4.h"
 #include "script.h"
+#ifdef PASSIVE_MODE
+#include "rpc-interface.h"
+#endif
 
 #define IPV4_LOOPBACK_ROUTE
 #if defined(__linux__) || (defined(BSD) && defined(RTF_LOCAL))
@@ -642,6 +645,8 @@ add_router_host_route(struct rt_head *rt, const struct interface *ifp)
 void
 ipv4_buildroutes(struct dhcpcd_ctx *ctx)
 {
+/* Do not modify route table when running in passive mode. */
+#ifndef PASSIVE_MODE
 	struct rt_head *nrs, *dnr;
 	struct rt *or, *rt, *rtn;
 	struct interface *ifp;
@@ -731,14 +736,16 @@ ipv4_buildroutes(struct dhcpcd_ctx *ctx)
 	}
 	ipv4_freeroutes(ctx->ipv4_routes);
 	ctx->ipv4_routes = nrs;
+#endif
 }
 
 int
 ipv4_deladdr(struct interface *ifp,
     const struct in_addr *addr, const struct in_addr *net)
 {
+	int r = 0;
+#ifndef PASSIVE_MODE
 	struct dhcp_state *dstate;
-	int r;
 	struct ipv4_state *state;
 	struct ipv4_addr *ap;
 
@@ -769,6 +776,7 @@ ipv4_deladdr(struct interface *ifp,
 			break;
 		}
 	}
+#endif
 	return r;
 }
 
@@ -870,6 +878,7 @@ ipv4_finalisert(struct interface *ifp)
 void
 ipv4_finaliseaddr(struct interface *ifp)
 {
+#ifndef PASSIVE_MODE
 	struct dhcp_state *state = D_STATE(ifp);
 	struct dhcp_lease *lease;
 
@@ -886,11 +895,15 @@ ipv4_finaliseaddr(struct interface *ifp)
 	state->addr.s_addr = lease->addr.s_addr;
 	state->net.s_addr = lease->net.s_addr;
 	ipv4_finalisert(ifp);
+#endif
 }
 
 void
 ipv4_applyaddr(void *arg)
 {
+#ifdef PASSIVE_MODE
+	rpc_update_ipv4(arg);
+#else
 	struct interface *ifp = arg, *ifn;
 	struct dhcp_state *state = D_STATE(ifp), *nstate;
 	struct dhcp_message *dhcp;
@@ -1008,6 +1021,8 @@ ipv4_applyaddr(void *arg)
 #endif
 
 	ipv4_finaliseaddr(ifp);
+
+#endif  /* PASSIVE_MODE */
 }
 
 void
