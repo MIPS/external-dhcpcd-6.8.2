@@ -2774,6 +2774,7 @@ dhcp_arp_conflicted(struct arp_state *astate, const struct arp_msg *amsg)
 		if (ia)
 			ipv4_deladdr(astate->iface, &ia->addr, &ia->net);
 #endif
+		arp_close(astate->iface);
 		eloop_timeout_delete(astate->iface->ctx->eloop, NULL,
 		    astate->iface);
 		eloop_timeout_add_sec(astate->iface->ctx->eloop,
