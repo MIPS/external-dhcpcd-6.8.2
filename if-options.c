@@ -141,6 +141,7 @@ const struct option cf_options[] = {
 	{"noipv4ll",        no_argument,       NULL, 'L'},
 	{"master",          no_argument,       NULL, 'M'},
 	{"nooption",        optional_argument, NULL, 'O'},
+	{"unicast",	    no_argument,       NULL, 'P'},
 	{"require",	    required_argument, NULL, 'Q'},
 	{"arpgw",	    no_argument,       NULL, 'R'},
 	{"static",          required_argument, NULL, 'S'},
@@ -987,6 +988,9 @@ parse_option(struct dhcpcd_ctx *ctx, const char *ifname, struct if_options *ifo,
 			logger(ctx, LOG_ERR, "unknown option `%s'", arg);
 			return -1;
 		}
+		break;
+	case 'P':
+		ifo->options |= DHCPCD_UNICAST_ARP;
 		break;
 	case 'Q':
 		arg = set_option_space(ctx, arg, &d, &dl, &od, &odl, ifo,

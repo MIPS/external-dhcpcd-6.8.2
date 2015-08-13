@@ -1194,7 +1194,7 @@ eexit:
 
 ssize_t
 if_sendrawpacket(const struct interface *ifp, uint16_t protocol,
-    const void *data, size_t len)
+    const void *data, size_t len, const uint8_t *dest_hw_addr)
 {
 	const struct dhcp_state *state;
 	union sockunion {
@@ -1213,8 +1213,12 @@ if_sendrawpacket(const struct interface *ifp, uint16_t protocol,
 	if (ifp->family == ARPHRD_INFINIBAND)
 		memcpy(&su.sll.sll_addr,
 		    &ipv4_bcast_addr, sizeof(ipv4_bcast_addr));
-	else
-		memset(&su.sll.sll_addr, 0xff, ifp->hwlen);
+	else {
+		if (dest_hw_addr)
+			memcpy(&su.sll.sll_addr, dest_hw_addr, ifp->hwlen);
+		else
+			memset(&su.sll.sll_addr, 0xff, ifp->hwlen);
+	}
 	state = D_CSTATE(ifp);
 	if (protocol == ETHERTYPE_ARP)
 		fd = state->arp_fd;

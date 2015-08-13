@@ -1070,6 +1070,8 @@ write_lease(const struct interface *ifp, const struct dhcp_message *dhcp)
 	uint8_t l;
 	uint8_t o = 0;
 	const struct dhcp_state *state = D_CSTATE(ifp);
+	uint8_t write_buffer[sizeof(*dhcp) + sizeof(state->server_info) + 1];
+	uint8_t *w;
 
 	/* We don't write BOOTP leases */
 	if (IS_BOOTP(ifp, dhcp)) {
@@ -1100,7 +1102,18 @@ write_lease(const struct interface *ifp, const struct dhcp_message *dhcp)
 			p += l;
 		}
 	}
-	bytes = write(fd, dhcp, len);
+
+	memcpy(write_buffer, dhcp, len);
+	w = write_buffer + len;
+
+	/* Copy in server info if this is available. */
+	if (state->server_info.gw_hwlen != 0) {
+		*w++ = DHO_END;
+		memcpy(w, &state->server_info, sizeof(state->server_info));
+		len += sizeof(state->server_info) + 1;
+	}
+
+	bytes = write(fd, write_buffer, len);
 	close(fd);
 	return bytes;
 }
@@ -1111,11 +1124,18 @@ read_lease(struct interface *ifp)
 	int fd;
 	struct dhcp_message *dhcp;
 	struct dhcp_state *state = D_STATE(ifp);
+	uint8_t read_buffer[sizeof(*dhcp) + sizeof(state->server_info) + 1];
+	const uint8_t *options_startp =
+			read_buffer + offsetof(struct dhcp_message, options);
+	const uint8_t *options_endp = options_startp + sizeof(dhcp->options);
+	uint8_t option_len;
+	uint8_t option_type = 0;
 	ssize_t bytes;
 	const uint8_t *auth;
 	uint8_t type;
 	size_t auth_len;
 
+	memset(&state->server_info, 0, sizeof(state->server_info));
 	fd = open(state->leasefile, O_RDONLY);
 	if (fd == -1) {
 		if (errno != ENOENT)
@@ -1125,17 +1145,31 @@ read_lease(struct interface *ifp)
 	}
 	logger(ifp->ctx, LOG_DEBUG, "%s: reading lease `%s'",
 	    ifp->name, state->leasefile);
+	bytes = read(fd, read_buffer, sizeof(read_buffer));
+	close(fd);
+
+	/* Lease file should at minimum contain all fields before options. */
+	if (read_buffer + bytes < options_startp)
+		return NULL;
+
 	dhcp = calloc(1, sizeof(*dhcp));
 	if (dhcp == NULL) {
-		close(fd);
 		return NULL;
 	}
-	bytes = read(fd, dhcp, sizeof(*dhcp));
-	close(fd);
-	if (bytes < 0) {
-		free(dhcp);
-		return NULL;
+
+	if (options_endp > read_buffer + bytes)
+		options_endp = read_buffer + bytes;
+
+	while (options_startp < options_endp) {
+		option_type = *options_startp++;
+		if (option_type == DHO_END)
+			break;
+		if (option_type != DHO_PAD) {
+			option_len = *options_startp++;
+			options_startp += option_len;
+		}
 	}
+	memcpy(dhcp, read_buffer, options_startp - read_buffer);
 
 	/* We may have found a BOOTP server */
 	if (get_option_uint8(ifp->ctx, &type, dhcp, DHO_MESSAGETYPE) == -1)
@@ -1162,6 +1196,27 @@ read_lease(struct interface *ifp)
 			    "%s: accepted reconfigure key", ifp->name);
 	}
 
+	/*
+	 * DHCP server information is stored after the DHO_END character
+	 * in the lease file.  The first byte of the server information
+	 * is the length of the gateway hardware address.
+	 */
+	options_endp = read_buffer + bytes;
+	if (options_startp >= options_endp ||
+	    options_startp + sizeof(state->server_info) > options_endp)
+		return dhcp;
+
+	logger(ifp->ctx, LOG_DEBUG, "%s: found server info in lease '%s'",
+	       ifp->name, state->leasefile);
+
+	memcpy(&state->server_info, options_startp, sizeof(state->server_info));
+	if (state->server_info.gw_hwlen != ifp->hwlen) {
+		logger(ifp->ctx, LOG_ERR, "%s: lease file %s has incompatible"
+		       "MAC address length %d (expected %zd)",
+		       ifp->name, state->leasefile,
+		       state->server_info.gw_hwlen, ifp->hwlen);
+		memset(&state->server_info, 0, sizeof(state->server_info));
+	}
 	return dhcp;
 }
 
@@ -1681,7 +1736,7 @@ send_message(struct interface *ifp, uint8_t type,
 			logger(ifp->ctx, LOG_ERR, "dhcp_makeudppacket: %m");
 		} else {
 			r = if_sendrawpacket(ifp, ETHERTYPE_IP,
-			    (uint8_t *)udp, ulen);
+			    (uint8_t *)udp, ulen, NULL);
 			free(udp);
 		}
 		/* If we failed to send a raw packet this normally means
@@ -2129,6 +2184,8 @@ dhcp_reboot_newopts(struct interface *ifp, unsigned long long oldopts)
 	}
 }
 
+static void start_unicast_arp(struct interface *ifp);
+
 static void
 dhcp_reboot(struct interface *ifp)
 {
@@ -2149,6 +2206,9 @@ dhcp_reboot(struct interface *ifp)
 	if (ifo->options & DHCPCD_STATIC) {
 		dhcp_static(ifp);
 		return;
+	}
+	if (ifo->options & DHCPCD_UNICAST_ARP) {
+		start_unicast_arp(ifp);
 	}
 	if (ifo->options & DHCPCD_INFORM) {
 		logger(ifp->ctx, LOG_INFO, "%s: informing address of %s",
@@ -2342,10 +2402,23 @@ whitelisted_ip(const struct if_options *ifo, in_addr_t addr)
 }
 
 static void
-dhcp_probe_gw_timeout(struct arp_state *astate) {
+save_gateway_addr(struct interface *ifp, const uint8_t *gw_hwaddr)
+{
+	struct dhcp_state *state = D_STATE(ifp);
+	memcpy(state->server_info.gw_hwaddr, gw_hwaddr, ifp->hwlen);
+	state->server_info.gw_hwlen = ifp->hwlen;
+}
+
+static void
+dhcp_probe_gw_timeout(struct arp_state *astate)
+{
 	struct dhcp_state *state = D_STATE(astate->iface);
 
-	/* Allow ourselves to fail only once this way */
+	/* Ignore unicast ARP failures. */
+	if (astate->dest_hwlen)
+		return;
+
+	/* Probegw failure, allow ourselves to fail only once this way */
 	logger(astate->iface->ctx, LOG_ERR,
 	       "%s: Probe gateway %s timed out ",
 	       astate->iface->name, inet_ntoa(astate->addr));
@@ -2373,14 +2446,22 @@ dhcp_probe_gw_response(struct arp_state *astate, const struct arp_msg *amsg)
 	    amsg &&
 	    amsg->tip.s_addr == astate->src_addr.s_addr &&
 	    amsg->sip.s_addr == astate->addr.s_addr) {
-		dhcp_close(astate->iface);
-		eloop_timeout_delete(astate->iface->ctx->eloop,
-				     NULL, astate->iface);
-#ifdef IN_IFF_TENTATIVE
-		ipv4_finaliseaddr(astate->iface);
-#else
-		dhcp_bind(astate->iface, NULL);
-#endif
+		if (astate->dest_hwlen) {
+			/* Response to unicast ARP. */
+			/* TODO(zqiu): notify listener. */
+		} else {
+			/* Response to arpgw request. */
+			save_gateway_addr(astate->iface, amsg->sha);
+
+			dhcp_close(astate->iface);
+			eloop_timeout_delete(astate->iface->ctx->eloop,
+					     NULL, astate->iface);
+	#ifdef IN_IFF_TENTATIVE
+			ipv4_finaliseaddr(astate->iface);
+	#else
+			dhcp_bind(astate->iface, NULL);
+	#endif
+		}
 		arp_close(astate->iface);
 	}
 }
@@ -2404,6 +2485,45 @@ dhcp_probe_gw(struct interface *ifp)
 		}
 	}
 	return 0;
+}
+
+static void
+start_unicast_arp(struct interface *ifp)
+{
+	struct dhcp_state *state = D_STATE(ifp);
+	struct in_addr gwa;
+	struct in_addr src_addr;
+	struct arp_state *astate;
+
+	if (!state->offer)
+		return;
+
+	if (!state->lease.frominfo)
+		return;
+
+	if (state->server_info.gw_hwlen != ifp->hwlen)
+		return;
+
+	if (get_option_addr(ifp->ctx, &gwa, state->offer, DHO_ROUTER))
+		return;
+
+	astate = arp_new(ifp, &gwa);
+	if (!astate)
+		return;
+	if (state->offer->yiaddr)
+		astate->src_addr.s_addr = state->offer->yiaddr;
+	else
+		astate->src_addr.s_addr = state->offer->ciaddr;
+	astate->probed_cb = dhcp_probe_gw_timeout;
+	astate->conflicted_cb = dhcp_probe_gw_response;
+	astate->dest_hwlen = state->server_info.gw_hwlen;
+	memcpy(astate->dest_hwaddr, state->server_info.gw_hwaddr,
+	       state->server_info.gw_hwlen);
+
+	arp_probe(astate);
+
+	/* Invalidate our gateway address until the next successful PROBEGW. */
+	state->server_info.gw_hwlen = 0;
 }
 
 static void

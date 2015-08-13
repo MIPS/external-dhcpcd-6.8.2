@@ -376,7 +376,7 @@ eexit:
 
 ssize_t
 if_sendrawpacket(const struct interface *ifp, uint16_t protocol,
-    const void *data, size_t len)
+    const void *data, size_t len, const uint8_t *dest_hw_addr)
 {
 	struct iovec iov[2];
 	struct ether_header hw;
@@ -384,7 +384,10 @@ if_sendrawpacket(const struct interface *ifp, uint16_t protocol,
 	const struct dhcp_state *state;
 
 	memset(&hw, 0, ETHER_HDR_LEN);
-	memset(&hw.ether_dhost, 0xff, ETHER_ADDR_LEN);
+	if (dest_hw_addr)
+		memcpy(&hw.ether_dhost, dest_hw_addr, ETHER_ADDR_LEN);
+	else
+		memset(&hw.ether_dhost, 0xff, ETHER_ADDR_LEN);
 	hw.ether_type = htons(protocol);
 	iov[0].iov_base = &hw;
 	iov[0].iov_len = ETHER_HDR_LEN;

@@ -63,6 +63,8 @@ struct arp_state {
 	int probes;
 	int claims;
 	struct in_addr failed;
+	uint8_t dest_hwlen;
+	unsigned char dest_hwaddr[HWADDR_LEN];
 };
 TAILQ_HEAD(arp_statehead, arp_state);
 

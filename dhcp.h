@@ -185,6 +185,12 @@ struct dhcp_lease {
 	uint32_t cookie;
 };
 
+/* Extra data about servers stored in the lease file after the dhcp_message */
+struct dhcp_server_info {
+	uint8_t gw_hwlen;
+	unsigned char gw_hwaddr[HWADDR_LEN];
+};
+
 enum DHS {
 	DHS_INIT,
 	DHS_DISCOVER,
@@ -236,6 +242,7 @@ struct dhcp_state {
 	unsigned int conflicts;
 	time_t defend;
 	char randomstate[128];
+	struct dhcp_server_info server_info;
 };
 
 #define D_STATE(ifp)							       \
