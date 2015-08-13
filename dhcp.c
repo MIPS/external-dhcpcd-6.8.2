@@ -2748,14 +2748,6 @@ dhcp_handledhcp(struct interface *ifp, struct dhcp_message **dhcpp,
 	}
 
 	if (type == DHCP_NAK) {
-		/* For NAK, only check if we require the ServerID */
-		if (has_option_mask(ifo->requiremask, DHO_SERVERID) &&
-		    get_option_addr(ifp->ctx, &addr, dhcp, DHO_SERVERID) == -1)
-		{
-			log_dhcp(LOG_WARNING, "reject NAK", ifp, dhcp, from);
-			return;
-		}
-
 		/* We should restart on a NAK */
 		log_dhcp(LOG_WARNING, "NAK:", ifp, dhcp, from);
 		if ((msg = get_option_string(ifp->ctx, dhcp, DHO_MESSAGE))) {
