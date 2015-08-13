@@ -2631,6 +2631,30 @@ dhcp_arp_conflicted(struct arp_state *astate, const struct arp_msg *amsg)
 }
 
 static void
+handle_nak(void *arg)
+{
+	struct interface *ifp = arg;
+	struct dhcp_state *state = D_STATE(ifp);
+
+	logger(ifp->ctx, LOG_INFO, "%s: Handling deferred NAK", ifp->name);
+	if (!(ifp->ctx->options & DHCPCD_TEST)) {
+		dhcp_drop(ifp, "NAK");
+		unlink(state->leasefile);
+	}
+
+	/* If we constantly get NAKS then we should slowly back off */
+	eloop_timeout_add_sec(ifp->ctx->eloop,
+	    state->nakoff, dhcp_discover, ifp);
+	if (state->nakoff == 0)
+		state->nakoff = 1;
+	else {
+		state->nakoff *= 2;
+		if (state->nakoff > NAKOFF_MAX)
+			state->nakoff = NAKOFF_MAX;
+	}
+}
+
+static void
 dhcp_handledhcp(struct interface *ifp, struct dhcp_message **dhcpp,
     const struct in_addr *from)
 {
@@ -2748,8 +2772,6 @@ dhcp_handledhcp(struct interface *ifp, struct dhcp_message **dhcpp,
 	}
 
 	if (type == DHCP_NAK) {
-		/* We should restart on a NAK */
-		log_dhcp(LOG_WARNING, "NAK:", ifp, dhcp, from);
 		if ((msg = get_option_string(ifp->ctx, dhcp, DHO_MESSAGE))) {
 			logger(ifp->ctx, LOG_WARNING, "%s: message: %s",
 			    ifp->name, msg);
@@ -2757,21 +2779,11 @@ dhcp_handledhcp(struct interface *ifp, struct dhcp_message **dhcpp,
 		}
 		if (state->state == DHS_INFORM) /* INFORM should not be NAKed */
 			return;
-		if (!(ifp->ctx->options & DHCPCD_TEST)) {
-			dhcp_drop(ifp, "NAK");
-			unlink(state->leasefile);
-		}
 
-		/* If we constantly get NAKS then we should slowly back off */
+		log_dhcp(LOG_WARNING, "NAK (deferred):", ifp, dhcp, from);
 		eloop_timeout_add_sec(ifp->ctx->eloop,
-		    state->nakoff, dhcp_discover, ifp);
-		if (state->nakoff == 0)
-			state->nakoff = 1;
-		else {
-			state->nakoff *= 2;
-			if (state->nakoff > NAKOFF_MAX)
-				state->nakoff = NAKOFF_MAX;
-		}
+				      DHCP_BASE, handle_nak, ifp);
+
 		return;
 	}
 
@@ -2888,6 +2900,7 @@ dhcp_handledhcp(struct interface *ifp, struct dhcp_message **dhcpp,
 			return;
 		}
 		eloop_timeout_delete(ifp->ctx->eloop, send_discover, ifp);
+		eloop_timeout_delete(ifp->ctx->eloop, handle_nak, ifp);
 		/* We don't request BOOTP addresses */
 		if (type) {
 			/* We used to ARP check here, but that seems to be in
