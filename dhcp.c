@@ -166,7 +166,11 @@ get_option(struct dhcpcd_ctx *ctx,
 		return NULL;
 	}
 
-	while (p < e) {
+	/* DHCP options are in TLV format with T and L each being a single
+	 * bytes.  In general, here we have p -> T, ol=p+1 -> L, op -> V.
+	 * We must make sure there is enough room to read both T and L.
+	 */
+	while (p + 1 < e) {
 		o = *p++;
 		if (o == opt) {
 			if (op) {
@@ -182,7 +186,7 @@ get_option(struct dhcpcd_ctx *ctx,
 				memcpy(bp, op, ol);
 				bp += ol;
 			}
-			ol = *p;
+			ol = (p + *p < e) ? *p : e - (p + 1);
 			if (p + ol > e) {
 				errno = EINVAL;
 				return NULL;

@@ -722,6 +722,10 @@ print_option(char *s, size_t len, int type, const uint8_t *data, size_t dl,
 #endif
 		else
 			sl = 0;
+		if (len <= sl) {
+			bytes += len;
+			break;
+		}
 		len -= (size_t)sl;
 		bytes += sl;
 		s += sl;
