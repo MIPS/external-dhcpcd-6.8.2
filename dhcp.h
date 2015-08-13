@@ -228,7 +228,7 @@ struct dhcp_state {
 	struct in_addr dst;
 	uint8_t added;
 
-	char leasefile[sizeof(LEASEFILE) + IF_NAMESIZE + (IF_SSIDSIZE * 4)];
+	char leasefile[PATH_MAX];
 	time_t start_uptime;
 
 	unsigned char *clientid;

@@ -74,6 +74,34 @@
 #undef IFLR_ACTIVE
 #endif
 
+int
+split_interface_lease(const char *ifname, int *interface_name_len,
+			  const char **lease_identifier)
+{
+	int ret = 0;
+	int len;
+	const char *lease_ptr = ifname;
+	const char *p = strchr(ifname, '=');
+
+	if (interface_name_len)
+		len = *interface_name_len;
+	else
+		len = strlen(ifname);
+
+	if (p) {
+		lease_ptr = p + 1;
+		if (len > p - ifname)
+			len = p - ifname;
+		ret = 1;
+	}
+
+	if (interface_name_len)
+		*interface_name_len = len;
+	if (lease_identifier)
+		*lease_identifier = lease_ptr;
+	return ret;
+}
+
 void
 if_free(struct interface *ifp)
 {
@@ -229,9 +257,13 @@ if_discover(struct dhcpcd_ctx *ctx, int argc, char * const *argv)
 	int i;
 	struct if_head *ifs;
 	struct interface *ifp;
-#ifdef __linux__
+	const char *lease_identifier;
 	char ifn[IF_NAMESIZE];
+
+#ifdef __linux__
+	char alias[IF_NAMESIZE];
 #endif
+
 #ifdef AF_LINK
 	const struct sockaddr_dl *sdl;
 #ifdef SIOCGIFPRIORITY
@@ -287,28 +319,31 @@ if_discover(struct dhcpcd_ctx *ctx, int argc, char * const *argv)
 		if (ifp)
 			continue;
 
+		lease_identifier = NULL;
 		if (argc > 0) {
 			for (i = 0; i < argc; i++) {
+				int intf_len = strlen(argv[i]);
+				split_interface_lease(argv[i], &intf_len,
+						      &lease_identifier);
+				if (intf_len > IF_NAMESIZE)
+					continue;
+				strlcpy(ifn, argv[i], intf_len + 1);
 #ifdef __linux__
+				strlcpy(alias, argv[i], intf_len + 1);
 				/* Check the real interface name */
-				strlcpy(ifn, argv[i], sizeof(ifn));
 				p = strchr(ifn, ':');
 				if (p)
 					*p = '\0';
+#endif
 				if (strcmp(ifn, ifa->ifa_name) == 0)
 					break;
-#else
-				if (strcmp(argv[i], ifa->ifa_name) == 0)
-					break;
-#endif
 			}
 			if (i == argc)
 				continue;
-			p = argv[i];
 		} else {
-			p = ifa->ifa_name;
-#ifdef __linux__
 			strlcpy(ifn, ifa->ifa_name, sizeof(ifn));
+#ifdef __linux
+			strlcpy(alias, ifa->ifa_name, sizeof(alias));
 #endif
 			/* -1 means we're discovering against a specific
 			 * interface, but we still need the below rules
@@ -316,6 +351,8 @@ if_discover(struct dhcpcd_ctx *ctx, int argc, char * const *argv)
 			if (argc == -1 && strcmp(argv[0], ifa->ifa_name) != 0)
 				continue;
 		}
+		p = ifn;
+
 		for (i = 0; i < ctx->ifdc; i++)
 			if (!fnmatch(ctx->ifdv[i], p, 0))
 				break;
@@ -351,11 +388,13 @@ if_discover(struct dhcpcd_ctx *ctx, int argc, char * const *argv)
 		}
 		ifp->ctx = ctx;
 #ifdef __linux__
-		strlcpy(ifp->name, ifn, sizeof(ifp->name));
-		strlcpy(ifp->alias, p, sizeof(ifp->alias));
-#else
-		strlcpy(ifp->name, p, sizeof(ifp->name));
+		strlcpy(ifp->alias, alias, sizeof(ifp->alias));
 #endif
+		strlcpy(ifp->name, p, sizeof(ifp->name));
+		if (lease_identifier) {
+			strlcpy(ifp->lease_identifier, lease_identifier,
+				sizeof(ifp->lease_identifier));
+		}
 		ifp->flags = ifa->ifa_flags;
 		ifp->carrier = if_carrier(ifp);
 

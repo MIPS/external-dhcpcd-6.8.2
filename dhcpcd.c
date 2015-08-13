@@ -1362,6 +1362,7 @@ main(int argc, char **argv)
 	int sig;
 	const char *siga;
 #endif
+	char ifn[IF_NAMESIZE];
 
 	/* Test for --help and --version */
 	if (argc > 1) {
@@ -1523,13 +1524,15 @@ main(int argc, char **argv)
 		 *  instance for that interface. */
 		if (optind == argc - 1 && !(ctx.options & DHCPCD_MASTER)) {
 			const char *per;
-
-			if (strlen(argv[optind]) > IF_NAMESIZE) {
+			int intf_len = strlen(argv[optind]);
+			split_interface_lease(argv[optind], &intf_len, NULL);
+			if (intf_len > IF_NAMESIZE) {
 				logger(&ctx, LOG_ERR,
 				    "%s: interface name too long",
 				    argv[optind]);
 				goto exit_failure;
 			}
+			strlcpy(ifn, argv[optind], intf_len + 1);
 			/* Allow a dhcpcd interface per address family */
 			switch(family) {
 			case AF_INET:
@@ -1542,7 +1545,7 @@ main(int argc, char **argv)
 				per = "";
 			}
 			snprintf(ctx.pidfile, sizeof(ctx.pidfile),
-			    PIDFILE, "-", argv[optind], per);
+			    PIDFILE, "-", ifn, per);
 		} else {
 			snprintf(ctx.pidfile, sizeof(ctx.pidfile),
 			    PIDFILE, "", "", "");
@@ -1780,10 +1783,19 @@ main(int argc, char **argv)
 		goto exit_failure;
 	}
 	for (i = 0; i < ctx.ifc; i++) {
-		if (if_find(ctx.ifaces, ctx.ifv[i]) == NULL)
+		int intf_len = strlen(ctx.ifv[i]);
+		split_interface_lease(ctx.ifv[i], &intf_len, NULL);
+		if (intf_len > IF_NAMESIZE) {
+			logger(&ctx, LOG_ERR,
+			    "%s: interface name too long",
+			    ctx.ifv[i]);
+			continue;
+		}
+		strlcpy(ifn, ctx.ifv[i], intf_len + 1);
+		if (if_find(ctx.ifaces, ifn) == NULL)
 			logger(&ctx, LOG_ERR,
 			    "%s: interface not found or invalid",
-			    ctx.ifv[i]);
+			    ifn);
 	}
 	if (TAILQ_FIRST(ctx.ifaces) == NULL) {
 		if (ctx.ifc == 0)

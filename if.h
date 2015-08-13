@@ -105,6 +105,8 @@ int if_domtu(const char *, short int);
 #define if_getmtu(iface) if_domtu(iface, 0)
 #define if_setmtu(iface, mtu) if_domtu(iface, mtu)
 int if_carrier(struct interface *);
+int split_interface_lease(const char *ifname, int *ifname_len,
+			  const char **lease_identifier);
 
 /* The below functions are provided by if-KERNEL.c */
 int if_conf(struct interface *);
