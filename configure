@@ -406,6 +406,14 @@ if [ -z "$INET6" -o "$INET6" = yes ]; then
 	echo "DHCPCD_SRCS+=	ipv6.c ipv6nd.c dhcp6.c" >>$CONFIG_MK
 fi
 
+if [ -z  "$HOOKSCRIPTS" ]; then
+	echo "DHCPCD_SRCS+= script-stub.c" >>$CONFIG_MK
+else
+	echo "HOOK_SUPPORT= yes" >>$CONFIG_MK
+	echo "SCRIPTSINSTALL=  _scriptsinstall" >>$CONFIG_MK
+	echo "DHCPCD_SRCS+= script.c" >>$CONFIG_MK
+fi
+
 echo "Using compiler .. $CC"
 # Add CPPFLAGS and CFLAGS to CC for testing features
 XCC="$CC `$SED -n -e 's/CPPFLAGS+=*\(.*\)/\1/p' $CONFIG_MK`"

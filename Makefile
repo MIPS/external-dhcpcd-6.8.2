@@ -2,7 +2,7 @@
 
 PROG=		dhcpcd
 SRCS=		common.c control.c dhcpcd.c duid.c eloop.c
-SRCS+=		if.c if-options.c script.c rpc-stub.c
+SRCS+=		if.c if-options.c rpc-stub.c
 SRCS+=		dhcp-common.c
 
 CFLAGS?=	-O2
@@ -36,7 +36,11 @@ CLEANFILES+=	dhcpcd-run-hooks
 FILES=		dhcpcd.conf
 FILESDIR=	${SYSCONFDIR}
 
-SUBDIRS=	dhcpcd-hooks ${MKDIRS}
+SUBDIRS=	${MKDIRS}
+
+ifeq ($(HOOK_SUPPORT),yes)
+SUBDIRS+= 	dhcpcd-hooks
+endif
 
 SED_RUNDIR=		-e 's:@RUNDIR@:${RUNDIR}:g'
 SED_DBDIR=		-e 's:@DBDIR@:${DBDIR}:g'
@@ -114,7 +118,7 @@ _scriptsinstall: ${SCRIPTS}
 	${INSTALL} -d ${DESTDIR}${SCRIPTSDIR}
 	${INSTALL} -m ${BINMODE} ${SCRIPTS} ${DESTDIR}${SCRIPTSDIR}
 
-proginstall: _proginstall _scriptsinstall ${EMBEDDEDINSTALL}
+proginstall: _proginstall ${SCRIPTSINSTALL} ${EMBEDDEDINSTALL}
 	for x in ${SUBDIRS}; do cd $$x; ${MAKE} $@; cd ..; done
 
 _maninstall: ${MAN5} ${MAN8}
