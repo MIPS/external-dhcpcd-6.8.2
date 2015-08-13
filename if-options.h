@@ -42,7 +42,7 @@
 /* Don't set any optional arguments here so we retain POSIX
  * compatibility with getopt */
 #define IF_OPTS "46bc:de:f:gh:i:j:kl:m:no:pqr:s:t:u:v:wxy:z:" \
-		"ABC:DEF:GHI:JKLMO:Q:S:TUVW:X:Z:"
+		"ABC:DEF:GHI:JKLMO:Q:RS:TUVW:X:Z:"
 
 #define DEFAULT_TIMEOUT		30
 #define DEFAULT_REBOOT		5
@@ -111,6 +111,7 @@
 #define DHCPCD_ROUTER_HOST_ROUTE_WARNED	(1ULL << 55)
 #define DHCPCD_IPV6RA_ACCEPT_NOPUBLIC	(1ULL << 56)
 #define DHCPCD_BOOTP			(1ULL << 57)
+#define DHCPCD_ARPGW			(1ULL << 58)
 
 #define DHCPCD_WARNINGS (DHCPCD_CSR_WARNED | \
 		DHCPCD_ROUTER_HOST_ROUTE_WARNED)

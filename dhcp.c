@@ -2342,6 +2342,71 @@ whitelisted_ip(const struct if_options *ifo, in_addr_t addr)
 }
 
 static void
+dhcp_probe_gw_timeout(struct arp_state *astate) {
+	struct dhcp_state *state = D_STATE(astate->iface);
+
+	/* Allow ourselves to fail only once this way */
+	logger(astate->iface->ctx, LOG_ERR,
+	       "%s: Probe gateway %s timed out ",
+	       astate->iface->name, inet_ntoa(astate->addr));
+	astate->iface->options->options &= ~DHCPCD_ARPGW;
+
+	unlink(state->leasefile);
+	if (!state->lease.frominfo)
+		dhcp_decline(astate->iface);
+#ifdef IN_IFF_DUPLICATED
+	ia = ipv4_iffindaddr(astate->iface, &astate->addr, NULL);
+	if (ia)
+		ipv4_deladdr(astate->iface, &ia->addr, &ia->net);
+#endif
+	eloop_timeout_delete(astate->iface->ctx->eloop, NULL,
+	    astate->iface);
+	eloop_timeout_add_sec(astate->iface->ctx->eloop,
+	    DHCP_RAND_MAX, dhcp_discover, astate->iface);
+}
+
+static void
+dhcp_probe_gw_response(struct arp_state *astate, const struct arp_msg *amsg)
+{
+	/* Verify this is a response for the gateway probe. */
+	if (astate->src_addr.s_addr != 0 &&
+	    amsg &&
+	    amsg->tip.s_addr == astate->src_addr.s_addr &&
+	    amsg->sip.s_addr == astate->addr.s_addr) {
+		dhcp_close(astate->iface);
+		eloop_timeout_delete(astate->iface->ctx->eloop,
+				     NULL, astate->iface);
+#ifdef IN_IFF_TENTATIVE
+		ipv4_finaliseaddr(astate->iface);
+#else
+		dhcp_bind(astate->iface, NULL);
+#endif
+		arp_close(astate->iface);
+	}
+}
+
+static int
+dhcp_probe_gw(struct interface *ifp)
+{
+	struct dhcp_state *state = D_STATE(ifp);
+	struct arp_state *astate;
+	struct in_addr gateway_addr;
+
+	if (get_option_addr(ifp->ctx, &gateway_addr,
+			    state->offer, DHO_ROUTER) == 0) {
+		astate = arp_new(ifp, &gateway_addr);
+		if (astate) {
+			astate->src_addr.s_addr = state->offer->yiaddr;
+			astate->probed_cb = dhcp_probe_gw_timeout;
+			astate->conflicted_cb = dhcp_probe_gw_response;
+			arp_probe(astate);
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static void
 dhcp_arp_probed(struct arp_state *astate)
 {
 	struct dhcp_state *state;
@@ -2361,6 +2426,12 @@ dhcp_arp_probed(struct arp_state *astate)
 		dhcpcd_startinterface(astate->iface);
 		return;
 	}
+
+	/* Probe the gateway specified in the lease offer. */
+	if ((ifo->options & DHCPCD_ARPGW) && (dhcp_probe_gw(astate->iface))) {
+		return;
+	}
+
 	dhcp_close(astate->iface);
 	eloop_timeout_delete(astate->iface->ctx->eloop, NULL, astate->iface);
 #ifdef IN_IFF_TENTATIVE
@@ -2780,6 +2851,10 @@ dhcp_handledhcp(struct interface *ifp, struct dhcp_message **dhcpp,
 			return;
 		}
 #endif
+	}
+
+	if ((ifo->options & DHCPCD_ARPGW) && (dhcp_probe_gw(ifp))) {
+		return;
 	}
 
 	dhcp_bind(ifp, astate);
