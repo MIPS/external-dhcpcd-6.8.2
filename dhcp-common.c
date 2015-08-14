@@ -750,11 +750,11 @@ dhcp_set_leasefile(char *leasefile, size_t len, int family,
 	if (strlen(ifp->lease_identifier) > 0) {
 		return snprintf(leasefile, len,
 				family == AF_INET ? LEASEFILE : LEASEFILE6,
-				ifp->lease_identifier, "", "");
+				ifp->lease_identifier, "", extra);
 	}
 	return snprintf(leasefile, len,
 			family == AF_INET ? LEASEFILE : LEASEFILE6,
-			ifp->name, "", "");
+			ifp->name, "", extra);
 }
 
 static size_t

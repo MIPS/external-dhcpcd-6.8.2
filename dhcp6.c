@@ -3207,6 +3207,14 @@ dhcp6_start1(void *arg)
 					    ifp->name);
 					ifp->options->options |=
 					    DHCPCD_NOPFXDLG;
+					/*
+					 * Maintain the same lease identifier
+					 * for the pseudo interface for
+					 * obtaining prefix delegation.
+					 */
+					strlcpy(ifn->lease_identifier,
+					        ifp->lease_identifier,
+					        sizeof(ifn->lease_identifier));
 					TAILQ_REMOVE(ifs, ifn, next);
 					TAILQ_INSERT_AFTER(ifp->ctx->ifaces,
 					    ifp, ifn, next);
