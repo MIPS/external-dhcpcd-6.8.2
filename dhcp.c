@@ -1654,7 +1654,7 @@ send_message(struct interface *ifp, uint8_t type,
 #endif
 
 	if (!callback)
-		logger(ifp->ctx, LOG_DEBUG, "%s: sending %s with xid 0x%x",
+		logger(ifp->ctx, LOG_INFO, "%s: sending %s with xid 0x%x",
 		    ifp->name,
 		    ifo->options & DHCPCD_BOOTP ? "BOOTP" : get_dhcp_op(type),
 		    state->xid);
@@ -1670,7 +1670,7 @@ send_message(struct interface *ifp, uint8_t type,
 		tv.tv_nsec = (suseconds_t)arc4random_uniform(
 		    (DHCP_RAND_MAX - DHCP_RAND_MIN) * NSEC_PER_SEC);
 		timespecnorm(&tv);
-		logger(ifp->ctx, LOG_DEBUG,
+		logger(ifp->ctx, LOG_INFO,
 		    "%s: sending %s (xid 0x%x), next in %0.1f seconds",
 		    ifp->name,
 		    ifo->options & DHCPCD_BOOTP ? "BOOTP" : get_dhcp_op(type),
@@ -1851,6 +1851,9 @@ dhcp_request(void *arg)
 	struct interface *ifp = arg;
 	struct dhcp_state *state = D_STATE(ifp);
 
+	logger(ifp->ctx, LOG_INFO, "%s: requesting lease of %s",
+		ifp->name, inet_ntoa(state->lease.addr));
+
 	rpc_signal_status("Request");
 	state->state = DHS_REQUEST;
 	state->nak_receive_count = 0;
@@ -1886,7 +1889,7 @@ dhcp_renew(void *arg)
 	struct dhcp_lease *lease = &state->lease;
 
 	rpc_signal_status("Renew");
-	logger(ifp->ctx, LOG_DEBUG, "%s: renewing lease of %s",
+	logger(ifp->ctx, LOG_INFO, "%s: renewing lease of %s",
 	    ifp->name, inet_ntoa(lease->addr));
 	logger(ifp->ctx, LOG_DEBUG, "%s: rebind in %"PRIu32" seconds,"
 	    " expire in %"PRIu32" seconds",
@@ -2285,6 +2288,8 @@ dhcp_inform(struct interface *ifp)
 
 	state = D_STATE(ifp);
 	ifo = ifp->options;
+	logger(ifp->ctx, LOG_INFO, "%s: informing peers of local address",
+	       ifp->name);
 	if (ifp->ctx->options & DHCPCD_TEST) {
 		state->addr.s_addr = ifo->req_addr.s_addr;
 		state->net.s_addr = ifo->req_mask.s_addr;
@@ -2840,6 +2845,9 @@ dhcp_handledhcp(struct interface *ifp, struct dhcp_message **dhcpp,
 		return;
 	}
 
+	logger(ifp->ctx, LOG_INFO, "%s: received %s with xid 0x%x",
+		ifp->name, get_dhcp_op(type), state->xid);
+
 	/* Authenticate the message */
 	auth = get_option(ifp->ctx, dhcp, DHO_AUTHENTICATION, &auth_len);
 	if (auth) {
@@ -3102,7 +3110,7 @@ dhcp_handledhcp(struct interface *ifp, struct dhcp_message **dhcpp,
 		}
 
 		if (!(ifo->options & DHCPCD_INFORM))
-			log_dhcp(LOG_DEBUG, "acknowledged", ifp, dhcp, from);
+			log_dhcp(LOG_INFO, "acknowledged", ifp, dhcp, from);
 		else
 		    ifo->options &= ~DHCPCD_STATIC;
 	}
@@ -3184,6 +3192,8 @@ valid_udp_packet(const uint8_t *data, size_t data_len, struct in_addr *from,
 	uint16_t bytes, udpsum;
 
 	if (data_len < sizeof(p.ip)) {
+		syslog(LOG_WARNING, "packet short than an ip header "
+			"(len=%zd)", data_len);
 		if (from)
 			from->s_addr = INADDR_ANY;
 		errno = EINVAL;
@@ -3193,16 +3203,20 @@ valid_udp_packet(const uint8_t *data, size_t data_len, struct in_addr *from,
 	if (from)
 		from->s_addr = p.ip.ip_src.s_addr;
 	if (data_len > sizeof(p)) {
+		syslog(LOG_WARNING, "packet too long (%zd bytes)", data_len);
 		errno = EINVAL;
 		return -1;
 	}
 	if (checksum(&p.ip, sizeof(p.ip)) != 0) {
+		syslog(LOG_WARNING, "packet failed ip header checksum");
 		errno = EINVAL;
 		return -1;
 	}
 
 	bytes = ntohs(p.ip.ip_len);
 	if (data_len < bytes) {
+		syslog(LOG_WARNING, "packet appears truncated "
+			"(len=%zd, ip_len=%zd)", data_len, bytes);
 		errno = EINVAL;
 		return -1;
 	}
@@ -3219,6 +3233,7 @@ valid_udp_packet(const uint8_t *data, size_t data_len, struct in_addr *from,
 		p.ip.ip_ttl = 0;
 		p.ip.ip_sum = 0;
 		if (udpsum && checksum(&p, bytes) != udpsum) {
+			syslog(LOG_WARNING, "packet failed udp checksum");
 			errno = EINVAL;
 			return -1;
 		}

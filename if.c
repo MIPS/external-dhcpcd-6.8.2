@@ -566,6 +566,14 @@ if_discover(struct dhcpcd_ctx *ctx, int argc, char * const *argv)
 		TAILQ_INSERT_TAIL(ifs, ifp, next);
 	}
 
+	if (!ifs) {
+		logger(ctx, LOG_INFO, "%s: no matching interfaces", __func__);
+		for (ifa = ifaddrs; ifa; ifa = ifa->ifa_next) {
+			logger(ctx, LOG_INFO, "%s: considered %s",
+			       __func__, ifa->ifa_name);
+		}
+	}
+
 	if_learnaddrs1(ctx, ifs, ifaddrs);
 	freeifaddrs(ifaddrs);
 

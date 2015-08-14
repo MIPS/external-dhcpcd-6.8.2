@@ -282,7 +282,7 @@ arp_probe1(void *arg)
 		tv.tv_nsec = 0;
 		eloop_timeout_add_tv(ifp->ctx->eloop, &tv, arp_probed, astate);
 	}
-	logger(ifp->ctx, LOG_DEBUG,
+	logger(ifp->ctx, LOG_INFO,
 	    "%s: ARP probing %s (%d of %d), next in %0.1f seconds",
 	    ifp->name, inet_ntoa(astate->addr),
 	    astate->probes ? astate->probes : PROBE_NUM, PROBE_NUM,
