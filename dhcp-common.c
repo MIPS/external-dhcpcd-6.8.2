@@ -734,6 +734,8 @@ print_option(char *s, size_t len, int type, const uint8_t *data, size_t dl,
 	return bytes;
 }
 
+/* Lease file name is formatted according to the expectation of the ChromiumOS's
+ * connection manager (shill). */
 int
 dhcp_set_leasefile(char *leasefile, size_t len, int family,
     const struct interface *ifp, const char *extra)
@@ -746,32 +748,13 @@ dhcp_set_leasefile(char *leasefile, size_t len, int family,
 	}
 
 	if (strlen(ifp->lease_identifier) > 0) {
-		/* Only supports lease identifier for IPv4 for now. */
-		if (family == AF_INET) {
-			return snprintf(leasefile, len, LEASEFILE,
-					ifp->lease_identifier, "", "");
-		}
+		return snprintf(leasefile, len,
+				family == AF_INET ? LEASEFILE : LEASEFILE6,
+				ifp->lease_identifier, "", "");
 	}
-
-	switch (family) {
-	case AF_INET:
-	case AF_INET6:
-		break;
-	default:
-		errno = EINVAL;
-		return -1;
-	}
-
-	if (ifp->wireless) {
-		ssid[0] = '-';
-		print_string(ssid + 1, sizeof(ssid) - 1,
-		    ESCFILE,
-		    (const uint8_t *)ifp->ssid, ifp->ssid_len);
-	} else
-		ssid[0] = '\0';
 	return snprintf(leasefile, len,
-	    family == AF_INET ? LEASEFILE : LEASEFILE6,
-	    ifp->name, ssid, extra);
+			family == AF_INET ? LEASEFILE : LEASEFILE,
+			ifp->name, "", "");
 }
 
 static size_t

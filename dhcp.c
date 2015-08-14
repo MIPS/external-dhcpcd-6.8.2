@@ -1660,11 +1660,11 @@ send_message(struct interface *ifp, uint8_t type,
 		    state->xid);
 	else {
 		if (state->interval == 0)
-			state->interval = 4;
+			state->interval = DHCP_BASE;
 		else {
 			state->interval *= 2;
-			if (state->interval > 64)
-				state->interval = 64;
+			if (state->interval > DHCP_MAX)
+				state->interval = DHCP_MAX;
 		}
 		tv.tv_sec = state->interval + DHCP_RAND_MIN;
 		tv.tv_nsec = (suseconds_t)arc4random_uniform(
@@ -2432,7 +2432,8 @@ dhcp_drop(struct interface *ifp, const char *reason)
 		dhcp_close(ifp);
 	}
 
-	if (ifp->options->options & DHCPCD_RELEASE) {
+	if (ifp->options->options & DHCPCD_RELEASE ||
+	    strcmp(reason, "RELEASE") == 0) {
 		unlink(state->leasefile);
 		if (ifp->carrier != LINK_DOWN &&
 		    state->new != NULL &&

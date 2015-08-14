@@ -25,6 +25,7 @@ INCLUDEDIR=
 DEVS=
 EMBEDDED=
 POLL=
+DBUS=
 
 for x do
 	opt=${x%%=*}
@@ -45,6 +46,8 @@ for x do
 	--enable-ipv6) INET6=yes;;
 	--disable-embedded) EMBEDDED=no;;
 	--enable-embedded) EMBEDDED=yes;;
+	--enable-dbus) DBUS=yes;;
+	--disable-dbus) DBUS=no;;
 	--prefix) PREFIX=$var;;
 	--sysconfdir) SYSCONFDIR=$var;;
 	--bindir|--sbindir) SBINDIR=$var;;
@@ -404,6 +407,15 @@ fi
 if [ -z "$INET6" -o "$INET6" = yes ]; then
 	echo "CPPFLAGS+=	-DINET6" >>$CONFIG_MK
 	echo "DHCPCD_SRCS+=	ipv6.c ipv6nd.c dhcp6.c" >>$CONFIG_MK
+fi
+
+if [ "$DBUS" = yes ]; then
+	echo "DBUS_SUPPORT= yes" >>$CONFIG_MK
+	echo "DBUSINSTALL=  _dbusinstall" >>$CONFIG_MK
+	echo "CPPFLAGS+=    -DPASSIVE_MODE" >>$CONFIG_MK
+	echo "DHCPCD_SRCS+= dbus/dbus-dict.c dbus/rpc-dbus.c" >>$CONFIG_MK
+else
+	echo "DHCPCD_SRCS+= rpc-stub.c" >>$CONFIG_MK
 fi
 
 if [ -z  "$HOOKSCRIPTS" ]; then

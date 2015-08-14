@@ -161,7 +161,7 @@ logger_open(struct dhcpcd_ctx *ctx)
 		}
 #endif
 	} else
-		openlog(PACKAGE, LOG_PID, LOG_DAEMON);
+		openlog(PACKAGE, LOG_PID | LOG_PERROR, LOG_DAEMON);
 }
 
 void

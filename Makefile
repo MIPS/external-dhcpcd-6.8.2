@@ -2,8 +2,9 @@
 
 PROG=		dhcpcd
 SRCS=		common.c control.c dhcpcd.c duid.c eloop.c
-SRCS+=		if.c if-options.c rpc-stub.c
+SRCS+=		if.c if-options.c
 SRCS+=		dhcp-common.c
+PKG_CONFIG ?= pkg-config
 
 CFLAGS?=	-O2
 MKDIRS=
@@ -30,10 +31,34 @@ MAN8=		dhcpcd.8 dhcpcd-run-hooks.8
 CLEANFILES=	dhcpcd.conf.5 dhcpcd.8 dhcpcd-run-hooks.8
 
 SCRIPTS=	dhcpcd-run-hooks
+
+FILES=		dhcpcd.conf
+
+ifeq ($(DBUS_SUPPORT),yes)
+FILES+= 	dbus/dhcpcd-dbus.conf
+
+_DBUSCFLAGS_SH= $(PKG_CONFIG) --cflags dbus-1
+_DBUSCFLAGS!= ${_DBUSCFLAGS_SH}
+DBUSCFLAGS= ${_DBUSCFLAGS}$(shell ${_DBUSCFLAGS_SH})
+
+_DBUSLIBS_SH= $(PKG_CONFIG) --libs dbus-1
+_DBUSLIBS!= ${_DBUSLIBS_SH}
+DBUSLIBS= ${_DBUSLIBS}$(shell ${_DBUSLIBS_SH})
+DBUSDIR= ${SYSCONFDIR}/dbus-1/system.d
+
+CFLAGS+= ${DBUSCFLAGS}
+LDADD+= ${DBUSLIBS}
+endif
+
+# Linux needs librt
+_LIBRT_SH=	[ "$$(uname -s)" = "Linux" ] && echo "-lrt" || echo ""
+_LIBRT!= 	${_LIBRT_SH}
+LIBRT?=		${_LIBRT} $(shell ${_LIBRT_SH})
+LDADD+=		${LIBRT}
+
 SCRIPTSDIR=	${LIBEXECDIR}
 CLEANFILES+=	dhcpcd-run-hooks
 
-FILES=		dhcpcd.conf
 FILESDIR=	${SYSCONFDIR}
 
 SUBDIRS=	${MKDIRS}
@@ -75,7 +100,7 @@ CLEANFILES+=	*.tar.bz2
 		${SED_SERVICEEXISTS} ${SED_SERVICECMD} ${SED_SERVICESTATUS} \
 		$< > $@
 
-all: config.h ${PROG} ${SCRIPTS} ${MAN5} ${MAN8}
+all: config.h ${PROG} ${SCRIPTS} ${MAN5} ${MAN8} ${FILES}
 	for x in ${SUBDIRS}; do cd $$x; ${MAKE} $@; cd ..; done
 
 dev:
@@ -127,12 +152,17 @@ _maninstall: ${MAN5} ${MAN8}
 	${INSTALL} -d ${DESTDIR}${MANDIR}/man8
 	${INSTALL} -m ${MANMODE} ${MAN8} ${DESTDIR}${MANDIR}/man8
 
-_confinstall:
+_dbusinstall: dbus/dhcpcd-dbus.conf
+	${INSTALL} -d ${DESTDIR}${DBUSDIR}
+	${INSTALL} -m ${CONFMODE} dbus/dhcpcd-dbus.conf \
+		${DESTDIR}${DBUSDIR}/dhcpcd.conf
+
+_confinstall: ${DBUSINSTALL}
 	${INSTALL} -d ${DESTDIR}${SYSCONFDIR}
 	test -e ${DESTDIR}${SYSCONFDIR}/dhcpcd.conf || \
 		${INSTALL} -m ${CONFMODE} dhcpcd.conf ${DESTDIR}${SYSCONFDIR}
 
-install: proginstall _maninstall _confinstall
+install: proginstall _confinstall
 
 clean:
 	rm -f ${OBJS} ${PROG} ${PROG}.core ${CLEANFILES}

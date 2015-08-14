@@ -1031,6 +1031,58 @@ dhcpcd_handlehwaddr(struct dhcpcd_ctx *ctx, const char *ifname,
 	memcpy(ifp->hwaddr, hwaddr, hwlen);
 }
 
+void
+dhcpcd_start_interface(struct dhcpcd_ctx *ctx, const char *ifname)
+{
+	struct interface *ifp;
+	ifp = if_find(ctx->ifaces, ifname);
+	if (ifp == NULL)
+	{
+		logger(ctx, LOG_ERR, "start_interface: %s not found",
+		       ifname);
+		return;
+	}
+	dhcpcd_startinterface(ifp);
+}
+
+void
+dhcpcd_stop_interface(struct dhcpcd_ctx *ctx, const char *ifname)
+{
+	struct interface *ifp;
+	ifp = if_find(ctx->ifaces, ifname);
+	if (ifp == NULL)
+	{
+		logger(ctx, LOG_ERR, "stop_interface: %s not found",
+		       ifname);
+		return;
+	}
+	stop_interface(ifp);
+}
+
+void
+dhcpcd_stop_interfaces(struct dhcpcd_ctx *ctx)
+{
+	struct interface *ifp;
+	TAILQ_FOREACH(ifp, ctx->ifaces, next) {
+		stop_interface(ifp);
+	}
+}
+
+void
+dhcpcd_release_ipv4(struct dhcpcd_ctx *ctx, const char *ifname)
+{
+	struct interface *ifp;
+
+	ifp = if_find(ctx->ifaces, ifname);
+	if (ifp == NULL)
+	{
+		logger(ctx, LOG_ERR, "IPv4 release: %s not found",
+		       ifname);
+		return;
+	}
+	dhcp_drop(ifp, "RELEASE");
+}
+
 static void
 if_reboot(struct interface *ifp, int argc, char **argv)
 {
@@ -1264,13 +1316,13 @@ dhcpcd_handleargs(struct dhcpcd_ctx *ctx, struct fd_list *fd,
 	 * write callback on the fd */
 	if (strcmp(*argv, "--version") == 0) {
 		return control_queue(fd, UNCONST(VERSION),
-		    strlen(VERSION) + 1, 0);
+			strlen(VERSION) + 1, 0);
 	} else if (strcmp(*argv, "--getconfigfile") == 0) {
 		return control_queue(fd, UNCONST(fd->ctx->cffile),
-		    strlen(fd->ctx->cffile) + 1, 0);
+			strlen(fd->ctx->cffile) + 1, 0);
 	} else if (strcmp(*argv, "--getinterfaces") == 0) {
 		eloop_event_add(fd->ctx->eloop, fd->fd, NULL, NULL,
-		    dhcpcd_getinterfaces, fd);
+			dhcpcd_getinterfaces, fd);
 		return 0;
 	} else if (strcmp(*argv, "--listen") == 0) {
 		fd->flags |= FD_LISTEN;
