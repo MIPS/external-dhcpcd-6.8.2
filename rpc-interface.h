@@ -42,8 +42,10 @@ void rpc_signal_status(const char *);
 /* Update IPv4 configuration. Return 0 on success. */
 int rpc_update_ipv4(struct interface *ifp);
 
+#ifdef INET6
 /* Update IPv6 configuration. Return 0 on success. */
 int rpc_update_ipv6(struct interface *ifp);
+#endif
 
 /* Emit notification for successful unicast ARP. Return 0 on success. */
 int rpc_notify_unicast_arp(struct interface *ifp);

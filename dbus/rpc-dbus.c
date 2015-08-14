@@ -39,6 +39,9 @@
 #include "../config.h"
 #include "../eloop.h"
 #include "../dhcp.h"
+#ifdef INET6
+#include "../dhcp6.h"
+#endif
 #include "../rpc-interface.h"
 #include "dbus-dict.h"
 
@@ -217,6 +220,23 @@ static const struct o_dbus dhos[] = {
 	{ "domain_search=", DBUS_TYPE_ARRAY, DBUS_TYPE_STRING,
 	  "DomainSearch" },
 	{ "wpad_url=", DBUS_TYPE_STRING, 0, "WebProxyAutoDiscoveryUrl" },
+#ifdef INET6
+	{ "dhcp6_server_id=", DBUS_TYPE_STRING, 0,
+	  "DHCPv6ServerIdentifier" },
+	{ "dhcp6_ia_na1_ia_addr1=", DBUS_TYPE_STRING, 0, "DHCPv6Address" },
+	{ "dhcp6_ia_na1_ia_addr1_vltime=", DBUS_TYPE_UINT32, 0,
+	  "DHCPv6AddressLeaseTime" },
+	{ "dhcp6_name_servers=", DBUS_TYPE_ARRAY, DBUS_TYPE_STRING,
+	  "DHCPv6NameServers" },
+	{ "dhcp6_domain_search=", DBUS_TYPE_ARRAY, DBUS_TYPE_STRING,
+	  "DHCPv6DomainSearch" },
+	{ "dhcp6_ia_pd1_prefix1=", DBUS_TYPE_STRING, 0,
+	  "DHCPv6DelegatedPrefix" },
+	{ "dhcp6_ia_pd1_prefix1_length=", DBUS_TYPE_UINT32, 0,
+	  "DHCPv6DelegatedPrefixLength" },
+	{ "dhcp6_ia_pd1_prefix1_vltime=", DBUS_TYPE_UINT32, 0,
+	  "DHCPv6DelegatedPrefixLeaseTime" },
+#endif
 	{ NULL, 0, 0, NULL }
 };
 
@@ -345,6 +365,83 @@ dbus_send_message(const struct interface *ifp, const char *reason,
 
 	return success;
 }
+
+#ifdef INET6
+static dbus_bool_t
+dbus_send_dhcpv6_message(const struct interface *ifp, const char *reason,
+    const char *prefix, struct dhcp6_message *message, size_t length)
+{
+	const struct if_options *ifo = ifp->options;
+	DBusMessage* msg;
+	DBusMessageIter args, dict;
+	int pid = getpid();
+	char **env = NULL;
+	ssize_t e, elen;
+	int retval;
+	int success = FALSE;
+
+	syslog(LOG_INFO, "event %s on interface %s", reason, ifp->name);
+
+	msg = dbus_message_new_signal(SERVICE_PATH, SERVICE_NAME, "Event");
+	if (msg == NULL) {
+		syslog(LOG_ERR, "failed to make a configure message");
+		return FALSE;
+	}
+	dbus_message_iter_init_append(msg, &args);
+	dbus_message_iter_append_basic(&args, DBUS_TYPE_UINT32, &pid);
+	dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &reason);
+	dbus_message_iter_open_container(&args, DBUS_TYPE_ARRAY,
+	    DBUS_DICT_ENTRY_BEGIN_CHAR_AS_STRING
+	    DBUS_TYPE_STRING_AS_STRING
+	    DBUS_TYPE_VARIANT_AS_STRING
+	    DBUS_DICT_ENTRY_END_CHAR_AS_STRING,
+	    &dict);
+	if (prefix == NULL || message == NULL)
+		retval = 0;
+	else {
+		e = dhcp6_env(NULL, NULL, ifp, message, length);
+		if (e > 0) {
+			char *config_prefix = strdup(prefix);
+			if (config_prefix == NULL) {
+				logger(dhcpcd_ctx, LOG_ERR,
+				       "Memory exhausted (strdup)");
+				eloop_exit(dhcpcd_ctx->eloop, EXIT_FAILURE);
+			}
+			char *p = config_prefix + strlen(config_prefix) - 1;
+			if (p >= config_prefix && *p == '_')
+				*p = '\0';
+			env = calloc(e + 1, sizeof(char *));
+			if (env == NULL) {
+				logger(dhcpcd_ctx, LOG_ERR,
+				       "Memory exhausted (calloc)");
+				eloop_exit(dhcpcd_ctx->eloop, EXIT_FAILURE);
+			}
+			elen = dhcp6_env(env, "new", ifp, message, length);
+			free(config_prefix);
+		}
+		retval = append_config(&dict, prefix, env, elen);
+	}
+
+	/* Release memory allocated for env. */
+	if (env) {
+		char **current = env;
+		while (*current)
+			free(*current++);
+		free(env);
+	}
+
+	dbus_message_iter_close_container(&args, &dict);
+	if (retval == 0) {
+		success = dbus_connection_send(connection, msg, NULL);
+		if (!success)
+			syslog(LOG_ERR, "failed to send dhcpv6 to dbus");
+	} else
+		syslog(LOG_ERR, "failed to construct dbus message");
+	dbus_message_unref(msg);
+
+	return success;
+}
+#endif
 
 static DBusHandlerResult
 introspect(DBusConnection *con, DBusMessage *msg)
@@ -640,12 +737,22 @@ rpc_update_ipv4(struct interface *ifp)
 	return 0;
 }
 
+#ifdef INET6
 int
 rpc_update_ipv6(struct interface *ifp)
 {
-	/* Currently not supported. */
+	struct dhcp6_state *state = D6_STATE(ifp);
+	if (state->new != NULL) {
+		/* push state over d-bus */
+		dbus_send_dhcpv6_message(ifp, state->reason, "new_",
+					 state->new, state->new_len);
+		rpc_signal_status("Bound6");
+	} else {
+		rpc_signal_status("Release6");
+	}
 	return 0;
 }
+#endif
 
 int
 rpc_notify_unicast_arp(struct interface *ifp) {

@@ -53,12 +53,14 @@ rpc_update_ipv4(struct interface *ifp)
 	return 0;
 }
 
+#ifdef INET6
 int
 rpc_update_ipv6(struct interface *ifp)
 {
 	/* Stub implementation. */
 	return 0;
 }
+#endif
 
 int
 rpc_notify_unicast_arp(struct interface *ifp)

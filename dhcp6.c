@@ -50,6 +50,7 @@
 #include "if.h"
 #include "if-options.h"
 #include "ipv6nd.h"
+#include "rpc-interface.h"
 #include "script.h"
 
 #ifndef __UNCONST
@@ -1373,6 +1374,7 @@ dhcp6_startdiscover(void *arg)
 	struct interface *ifp;
 	struct dhcp6_state *state;
 
+	rpc_signal_status("Discover6");
 	ifp = arg;
 	dhcp6_delete_delegates(ifp);
 	logger(ifp->ctx, LOG_INFO, "%s: soliciting a DHCPv6 lease", ifp->name);
@@ -1474,6 +1476,7 @@ dhcp6_startrebind(void *arg)
 	struct dhcp6_state *state;
 	int pd;
 
+	rpc_signal_status("Rebind6");
 	ifp = arg;
 	eloop_timeout_delete(ifp->ctx->eloop, dhcp6_sendrenew, ifp);
 	state = D6_STATE(ifp);
@@ -1516,6 +1519,7 @@ dhcp6_startrequest(struct interface *ifp)
 {
 	struct dhcp6_state *state;
 
+	rpc_signal_status("Request6");
 	eloop_timeout_delete(ifp->ctx->eloop, dhcp6_senddiscover, ifp);
 	state = D6_STATE(ifp);
 	state->state = DH6S_REQUEST;
@@ -1539,6 +1543,7 @@ dhcp6_startconfirm(struct interface *ifp)
 {
 	struct dhcp6_state *state;
 
+	rpc_signal_status("Confirm6");
 	state = D6_STATE(ifp);
 	state->state = DH6S_CONFIRM;
 	state->start_uptime = uptime();
@@ -1566,6 +1571,7 @@ dhcp6_startinform(void *arg)
 	struct interface *ifp;
 	struct dhcp6_state *state;
 
+	rpc_signal_status("Inform6");
 	ifp = arg;
 	state = D6_STATE(ifp);
 	if (state->new == NULL || ifp->options->options & DHCPCD_DEBUG)
@@ -1591,6 +1597,7 @@ dhcp6_startexpire(void *arg)
 {
 	struct interface *ifp;
 
+	rpc_signal_status("Expire6");
 	ifp = arg;
 	eloop_timeout_delete(ifp->ctx->eloop, dhcp6_sendrebind, ifp);
 
@@ -1614,6 +1621,7 @@ dhcp6_startrelease(struct interface *ifp)
 	if (state->state != DH6S_BOUND)
 		return;
 
+	rpc_signal_status("Release6");
 	state->state = DH6S_RELEASE;
 	state->start_uptime = uptime();
 	state->RTC = 0;
@@ -3039,9 +3047,13 @@ recv:
 			eloop_timeout_add_sec(ifp->ctx->eloop,
 			    (time_t)state->expire, dhcp6_startexpire, ifp);
 
+#ifndef PASSIVE_MODE
 		ipv6nd_runignoredra(ifp);
 		ipv6_addaddrs(&state->addrs);
 		dhcp6_delegate_prefix(ifp);
+#else
+		rpc_update_ipv6(ifp);
+#endif  /* PASSIVE_MODE */
 
 		if (state->state == DH6S_INFORMED)
 			logger(ifp->ctx, has_new ? LOG_INFO : LOG_DEBUG,

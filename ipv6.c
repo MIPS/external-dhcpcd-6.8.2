@@ -609,6 +609,7 @@ ipv6_checkaddrflags(void *arg)
 static void
 ipv6_deleteaddr(struct ipv6_addr *ia)
 {
+#ifndef PASSIVE_MODE
 	struct ipv6_state *state;
 	struct ipv6_addr *ap;
 
@@ -626,11 +627,13 @@ ipv6_deleteaddr(struct ipv6_addr *ia)
 			break;
 		}
 	}
+#endif
 }
 
 int
 ipv6_addaddr(struct ipv6_addr *ap, const struct timespec *now)
 {
+#ifndef PASSIVE_MODE
 	struct interface *ifp;
 	struct ipv6_state *state;
 	struct ipv6_addr *nap;
@@ -740,6 +743,7 @@ ipv6_addaddr(struct ipv6_addr *ap, const struct timespec *now)
 		eloop_timeout_add_tv(ap->iface->ctx->eloop,
 		    &tv, ipv6_checkaddrflags, ap);
 	}
+#endif
 #endif
 
 	return 0;
@@ -2016,6 +2020,7 @@ ipv6_build_dhcp_routes(struct dhcpcd_ctx *ctx,
 void
 ipv6_buildroutes(struct dhcpcd_ctx *ctx)
 {
+#ifndef PASSIVE_MODE
 	struct rt6_head dnr, *nrs;
 	struct rt6 *rt, *rtn, *or;
 	uint8_t have_default;
@@ -2119,4 +2124,5 @@ ipv6_buildroutes(struct dhcpcd_ctx *ctx)
 
 	free(ctx->ipv6->routes);
 	ctx->ipv6->routes = nrs;
+#endif
 }

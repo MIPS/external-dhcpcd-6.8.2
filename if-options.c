@@ -102,6 +102,7 @@
 #define O_BOOTP			O_BASE + 42
 
 const struct option cf_options[] = {
+	{"shill-ipv6",      no_argument,       NULL, 'a'},
 	{"background",      no_argument,       NULL, 'b'},
 	{"script",          required_argument, NULL, 'c'},
 	{"debug",           no_argument,       NULL, 'd'},
@@ -671,6 +672,44 @@ parse_option(struct dhcpcd_ctx *ctx, const char *ifname, struct if_options *ifo,
 	case 'U': /* FALLTHROUGH */
 	case 'V': /* We need to handle non interface options */
 		break;
+#ifdef INET6
+	case 'a':
+		/* Chromeos hack: configure DHCPv6 option for shill. */
+
+		/* Reallocate ia to add both ia_na and ia_pd. */
+		ia = realloc(ifo->ia, sizeof(*ifo->ia) * (ifo->ia_len + 2));
+		if (ia == NULL) {
+			logger(ctx, LOG_ERR, "%s: %m", __func__);
+			return -1;
+		}
+		ifo->ia = ia;
+
+		/* Setup ia_na option with iaid of 0. */
+		ia = &ifo->ia[ifo->ia_len++];
+		ia->ia_type = D6_OPTION_IA_NA;
+		parse_iaid(ia->iaid, "0", sizeof(ia->iaid));
+		ia->iaid_set = 1;
+		memset(&ia->addr, 0, sizeof(ia->addr));
+		ia->prefix_len = 0;
+		ia->sla_max = 0;
+		ia->sla_len = 0;
+		ia->sla = NULL;
+
+		/* Setup ia_pd option with iaid of 1. */
+		ia = &ifo->ia[ifo->ia_len++];
+		ia->ia_type = D6_OPTION_IA_PD;
+		parse_iaid(ia->iaid, "1", sizeof(ia->iaid));
+		ia->iaid_set = 1;
+		memset(&ia->addr, 0, sizeof(ia->addr));
+		ia->prefix_len = 0;
+		ia->sla_max = 0;
+		ia->sla_len = 0;
+		ia->sla = NULL;
+
+		/* Enable ia option. */
+		ifo->options |= DHCPCD_IA_FORCED;
+		break;
+#endif
 	case 'b':
 		ifo->options |= DHCPCD_BACKGROUND;
 		break;
