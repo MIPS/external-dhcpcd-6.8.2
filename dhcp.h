@@ -240,6 +240,9 @@ struct dhcp_state {
 
 	struct arp_state *arp_ipv4ll;
 	unsigned int conflicts;
+	int nak_receive_count;
+	int failed_address_offer_count;
+	struct in_addr failed;
 	time_t defend;
 	char randomstate[128];
 	struct dhcp_server_info server_info;

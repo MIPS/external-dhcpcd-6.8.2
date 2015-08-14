@@ -133,6 +133,7 @@ arp_packet(void *arg)
 	int flags;
 
 	state = D_STATE(ifp);
+	state->failed.s_addr = 0;
 	flags = 0;
 	while (!(flags & RAW_EOF)) {
 		bytes = if_readrawpacket(ifp, ETHERTYPE_ARP,
