@@ -8,8 +8,11 @@
 #ifndef NBBY
 #define NBBY  8
 #endif
-#include "compat/queue.h"
+#include "compat/closefrom.h"
 #include "compat/endian.h"
+#include "compat/posix_spawn.h"
+#include "compat/queue.h"
+#include "compat/strtoi.h"
 
 #include <signal.h>
 #include <linux/rtnetlink.h>
