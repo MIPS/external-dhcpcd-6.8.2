@@ -84,6 +84,7 @@ struct ifaddrs *get_interface(const char *name, sa_family_t family)
                 memset(hwaddr, 0, sizeof(struct sockaddr_ll));
                 hwaddr->sll_family = family;
                 /* hwaddr->sll_protocol = ETHERTYPE_IP; */
+                ifc_get_ifindex(ifa->ifa_name, &hwaddr->sll_ifindex);
                 hwaddr->sll_hatype = ARPHRD_ETHER;
                 hwaddr->sll_halen = ETH_ALEN;
                 memcpy(hwaddr->sll_addr, hwbuf, ETH_ALEN);
