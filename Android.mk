@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# dhcpcd-6.8.2 is D-Bus enabled and compatible with Brillo daemons. dhcpcd
+# is the standard version of this daemon used in Android.
 
 LOCAL_PATH := $(call my-dir)
 
