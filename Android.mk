@@ -56,8 +56,7 @@ endif
 
 ifeq ($(DHCPCD_USE_DBUS), yes)
 LOCAL_SRC_FILES += dbus/dbus-dict.c dbus/rpc-dbus.c
-LOCAL_CPPFLAGS += -DPASSIVE_MODE
-LOCAL_CFLAGS += -DCONFIG_DBUS
+LOCAL_CFLAGS += -DCONFIG_DBUS -DPASSIVE_MODE
 LOCAL_SHARED_LIBRARIES += libdbus
 else
 LOCAL_SRC_FILES += rpc-stub.c
