@@ -35,7 +35,7 @@ LOCAL_SRC_FILES := \
     dhcp.c \
     ipv4.c \
     ipv4ll.c \
-    script.c \
+    script-stub.c \
     ifaddrs.c \
     crypt/md5.c \
     crypt/hmac_md5.c \
