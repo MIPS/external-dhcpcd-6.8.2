@@ -49,6 +49,12 @@ const char dhcpcd_copyright[] = "Copyright (c) 2006-2015 Roy Marples";
 #include <unistd.h>
 #include <time.h>
 
+#if defined(__ANDROID__)
+#include <sys/capability.h>
+#include <sys/prctl.h>
+#include <private/android_filesystem_config.h>
+#endif /* __ANDROID__ */
+
 #include "config.h"
 #include "arp.h"
 #include "common.h"
@@ -1398,6 +1404,30 @@ dhcpcd_handleargs(struct dhcpcd_ctx *ctx, struct fd_list *fd,
 	return 0;
 }
 
+#if defined(__ANDROID__)
+static void
+switch_user(void)
+{
+	gid_t groups[] = { AID_DBUS, AID_INET, AID_SHELL };
+	struct __user_cap_header_struct header;
+	struct __user_cap_data_struct cap;
+
+	setgroups(sizeof(groups)/sizeof(groups[0]), groups);
+
+	prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0);
+
+	setgid(AID_DHCP);
+	setuid(AID_DHCP);
+	header.version = _LINUX_CAPABILITY_VERSION;
+	header.pid = 0;
+	cap.effective = cap.permitted =
+		(1 << CAP_NET_ADMIN) | (1 << CAP_NET_RAW) |
+		(1 << CAP_NET_BROADCAST) | (1 << CAP_NET_BIND_SERVICE);
+	cap.inheritable = 0;
+	capset(&header, &cap);
+}
+#endif /* __ANDROID__ */
+
 int
 main(int argc, char **argv)
 {
@@ -1416,6 +1446,10 @@ main(int argc, char **argv)
 	const char *siga;
 #endif
 	char ifn[IF_NAMESIZE];
+
+#if defined(__ANDROID__)
+	switch_user();
+#endif  // __ANDROID__
 
 	/* Test for --help and --version */
 	if (argc > 1) {
@@ -1746,11 +1780,15 @@ main(int argc, char **argv)
 			goto exit_failure;
 		}
 
-		/* Ensure we have the needed directories */
+#if !defined(__ANDROID__)
+		/* Ensure we have the needed directories
+		 * On Android, we assume that these directories have been created
+		 * by calls to mkdir in an init.rc file. */
 		if (mkdir(RUNDIR, 0755) == -1 && errno != EEXIST)
 			logger(&ctx, LOG_ERR, "mkdir `%s': %m", RUNDIR);
 		if (mkdir(DBDIR, 0755) == -1 && errno != EEXIST)
 			logger(&ctx, LOG_ERR, "mkdir `%s': %m", DBDIR);
+#endif /* __ANDROID__ */
 
 		opt = O_WRONLY | O_CREAT | O_NONBLOCK;
 #ifdef O_CLOEXEC
