@@ -75,9 +75,11 @@ LOCAL_CFLAGS += -Wno-maybe-uninitialized
 LOCAL_SHARED_LIBRARIES += libc libcutils libnetutils
 include $(BUILD_EXECUTABLE)
 
-include $(CLEAR_VARS)
-LOCAL_MODULE := dhcpcd-6.8.2.conf
-LOCAL_MODULE_CLASS := ETC
-LOCAL_MODULE_PATH := $(TARGET_OUT)/etc/dhcpcd-6.8.2
-LOCAL_SRC_FILES := android.conf
-include $(BUILD_PREBUILT)
+# Each build target using dhcpcd-6.8.2 should define its own source
+# and destination for its dhcpcd.conf file.
+# include $(CLEAR_VARS)
+# LOCAL_MODULE := dhcpcd-6.8.2.conf
+# LOCAL_MODULE_CLASS := ETC
+# LOCAL_MODULE_PATH := $(TARGET_OUT)/etc/dhcpcd-6.8.2
+# LOCAL_SRC_FILES := android.conf
+# include $(BUILD_PREBUILT)
