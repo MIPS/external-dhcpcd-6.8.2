@@ -53,7 +53,7 @@ const char dhcpcd_copyright[] = "Copyright (c) 2006-2015 Roy Marples";
 #include <sys/capability.h>
 #include <sys/prctl.h>
 #include <private/android_filesystem_config.h>
-#endif /* __ANDROID__ */
+#endif  /* __ANDROID__ */
 
 #include "config.h"
 #include "arp.h"
@@ -1426,7 +1426,7 @@ switch_user(void)
 	cap.inheritable = 0;
 	capset(&header, &cap);
 }
-#endif /* __ANDROID__ */
+#endif  /* __ANDROID__ */
 
 int
 main(int argc, char **argv)
@@ -1447,9 +1447,9 @@ main(int argc, char **argv)
 #endif
 	char ifn[IF_NAMESIZE];
 
-#if defined(__ANDROID__)
+#if defined(__ANDROID__) && !defined(__BRILLO__)
 	switch_user();
-#endif  // __ANDROID__
+#endif  /* __ANDROID__ && !__BRILLO__ */
 
 	/* Test for --help and --version */
 	if (argc > 1) {
