@@ -522,51 +522,43 @@ print_string(char *dst, size_t len, int type, const uint8_t *data, size_t dl)
 	return (ssize_t)bytes;
 }
 
-#define ADDRSZ		4
 #define ADDR6SZ		16
 static size_t
 dhcp_optlen(const struct dhcp_opt *opt, size_t dl)
 {
 	size_t sz;
 
-	if (dl == 0)
-		return 0;
-
-	if (opt->type == 0 ||
-	    opt->type & (STRING | BINHEX | RFC3442 | RFC5969))
-	{
-		if (opt->len) {
-			if ((size_t)opt->len > dl)
-				return 0;
-			return (size_t)opt->len;
-		}
-		return dl;
-	}
-
-	if ((opt->type & (ADDRIPV4 | ARRAY)) == (ADDRIPV4 | ARRAY)) {
-		if (dl < ADDRSZ)
-			return 0;
-		return dl - (dl % ADDRSZ);
-	}
-
-	if ((opt->type & (ADDRIPV6 | ARRAY)) == (ADDRIPV6 | ARRAY)) {
-		if (dl < ADDR6SZ)
-			return 0;
-		return dl - (dl % ADDR6SZ);
-	}
-
-	if (opt->type & (UINT32 | ADDRIPV4))
+	if (opt->type & ADDRIPV6)
+		sz = ADDR6SZ;
+	else if (opt->type & (UINT32 | ADDRIPV4))
 		sz = sizeof(uint32_t);
 	else if (opt->type & UINT16)
 		sz = sizeof(uint16_t);
-	else if (opt->type & UINT8)
+	else if (opt->type & (UINT8 | BITFLAG))
 		sz = sizeof(uint8_t);
-	else if (opt->type & ADDRIPV6)
-		sz = ADDR6SZ;
-	else
-		/* If we don't know the size, assume it's valid */
-		return dl;
-	return (dl < sz ? 0 : sz);
+	else if (opt->type & FLAG)
+		return 0;
+	else {
+		/* All other types are variable length */
+		if (opt->len) {
+			if ((size_t)opt->len > dl) {
+				errno = ENODATA;
+				return -1;
+			}
+			return (ssize_t)opt->len;
+		}
+		return (ssize_t)dl;
+	}
+	if (dl < sz) {
+		errno = ENODATA;
+		return -1;
+	}
+
+	/* Trim any extra data.
+	 * Maybe we need a settng to reject DHCP options with extra data? */
+	if (opt->type & ARRAY)
+		return (ssize_t)(dl - (dl % sz));
+	return (ssize_t)sz;
 }
 
 #ifdef INET6
@@ -766,8 +758,11 @@ dhcp_envoption1(struct dhcpcd_ctx *ctx, char **env, const char *prefix,
 	size_t e;
 	char *v, *val;
 
-	if (opt->len && opt->len < ol)
-		ol = opt->len;
+	/* Ensure a valid length */
+	ol = (size_t)dhcp_optlen(opt, ol);
+	if ((ssize_t)ol == -1)
+		return 0;
+
 	len = print_option(NULL, 0, opt->type, od, ol, ifname);
 	if (len < 0)
 		return 0;

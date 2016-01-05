@@ -66,6 +66,7 @@
 #define RAW		(1 << 23)
 #define ESCSTRING	(1 << 24)
 #define ESCFILE		(1 << 25)
+#define BITFLAG		(1 << 26)
 
 struct dhcp_opt {
 	uint32_t option; /* Also used for IANA Enterpise Number */
