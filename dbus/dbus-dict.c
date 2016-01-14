@@ -29,6 +29,7 @@
 
 #include <ctype.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <syslog.h>
 
@@ -167,6 +168,50 @@ append_config_value(DBusMessageIter *entry, int type,
 }
 
 static int
+append_config_byte_array(DBusMessageIter *entry, const char *data)
+{
+	DBusMessageIter var, array;
+	dbus_bool_t ok = TRUE;
+	uint8_t u8, u8_2;
+	size_t len;
+	const char *it, *end;
+	const char *tsa, *ts;
+
+	tsa = DBUS_TYPE_ARRAY_AS_STRING DBUS_TYPE_BYTE_AS_STRING;
+	ts = DBUS_TYPE_BYTE_AS_STRING;
+
+	dbus_message_iter_open_container(entry, DBUS_TYPE_VARIANT, tsa, &var);
+	dbus_message_iter_open_container(&var, DBUS_TYPE_ARRAY, ts, &array);
+
+	len = strlen(data);
+	it = data;
+	end = data + len;
+
+	/* "a12" is treated as "0a12" */
+	if (len & 1) {
+		ok = (sscanf(it++, "%1hhx", &u8) == 1) &&
+			dbus_message_iter_append_basic(&array, DBUS_TYPE_BYTE,
+						       &u8);
+	}
+
+	while (ok && it < end) {
+		/* sscanf("1z", "%2hhx", &u8) will store 0x01 in u8 and
+		 * will return 1 */
+		ok = (sscanf(it++, "%1hhx", &u8) == 1) &&
+			(sscanf(it++, "%1hhx", &u8_2) == 1);
+		if (!ok)
+			break;
+
+		u8 = (u8 << 4) | u8_2;
+		ok = dbus_message_iter_append_basic(&array, DBUS_TYPE_BYTE, &u8);
+	}
+
+	dbus_message_iter_close_container(&var, &array);
+	dbus_message_iter_close_container(entry, &var);
+	return ok ? 0 : -1;
+}
+
+static int
 append_config_array(DBusMessageIter *entry, int type, const char *data)
 {
 	int retval;
@@ -176,6 +221,9 @@ append_config_array(DBusMessageIter *entry, int type, const char *data)
 	dbus_bool_t ok;
 	dbus_uint32_t u32;
 	struct in_addr in;
+
+	if (type == DBUS_TYPE_BYTE)
+		return append_config_byte_array(entry, data);
 
 	switch (type) {
 	case DBUS_TYPE_STRING:
