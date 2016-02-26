@@ -35,7 +35,6 @@ LOCAL_SRC_FILES := \
     dhcp.c \
     ipv4.c \
     ipv4ll.c \
-    script-stub.c \
     ifaddrs.c \
     crypt/md5.c \
     crypt/hmac_md5.c \
@@ -46,6 +45,12 @@ LOCAL_SRC_FILES := \
 
 # Always support IPv4.
 LOCAL_CFLAGS += -DINET
+
+ifeq ($(DHCPCD_USE_SCRIPT), yes)
+LOCAL_SRC_FILES += script.c
+else
+LOCAL_SRC_FILES += script-stub.c
+endif
 
 ifeq ($(DHCPCD_USE_IPV6), yes)
 LOCAL_SRC_FILES += ipv6.c ipv6nd.c dhcp6.c
