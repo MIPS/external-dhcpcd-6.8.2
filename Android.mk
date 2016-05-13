@@ -47,6 +47,8 @@ LOCAL_SRC_FILES := \
 # Always support IPv4.
 LOCAL_CFLAGS += -DINET
 
+LOCAL_CFLAGS += -D_BSD_SOURCE
+
 ifeq ($(DHCPCD_USE_IPV6), yes)
 LOCAL_SRC_FILES += ipv6.c ipv6nd.c dhcp6.c
 LOCAL_SRC_FILES += crypt/sha256.c
