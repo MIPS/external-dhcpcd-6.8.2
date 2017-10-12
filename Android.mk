@@ -44,7 +44,7 @@ LOCAL_SRC_FILES := \
     compat/posix_spawn.c
 
 # Always support IPv4.
-LOCAL_CFLAGS += -DINET
+LOCAL_CFLAGS += -DINET -Wall -Werror -Wno-unused-variable
 
 ifeq ($(DHCPCD_USE_SCRIPT), yes)
 LOCAL_SRC_FILES += script.c
