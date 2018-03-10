@@ -1447,9 +1447,9 @@ main(int argc, char **argv)
 #endif
 	char ifn[IF_NAMESIZE];
 
-#if defined(__ANDROID__) && !defined(__BRILLO__)
+#if defined(__ANDROID__)
 	switch_user();
-#endif  /* __ANDROID__ && !__BRILLO__ */
+#endif  /* __ANDROID__ */
 
 	/* Test for --help and --version */
 	if (argc > 1) {
